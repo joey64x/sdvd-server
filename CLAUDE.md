@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-JunimoServer is a dedicated server for Stardew Valley multiplayer. It runs the game headlessly inside Docker, allowing 24/7 multiplayer farms. The primary language is **C# (.NET 6.0)** targeting the SMAPI modding framework, with supporting tools in TypeScript (Bun) and shell scripts.
+JunimoServer is a dedicated server for Stardew Valley multiplayer. It runs the game headlessly inside Docker, allowing 24/7 multiplayer farms. The primary language is **C#** targeting the SMAPI modding framework (.NET 6.0), with supporting tools in C# (.NET 10.0), TypeScript (Bun), and shell scripts.
 
 ## First-Time Setup
 
@@ -100,7 +100,7 @@ Multi-stage Dockerfile at `docker/Dockerfile`:
 ### Tools (`tools/`)
 
 - **steam-service** — C# gRPC service for Steam authentication and game downloads
-- **discord-bot** — TypeScript/Bun Discord bot for status display and chat relay
+- **discord-bot** — TypeScript/Bun Discord bot for status display, chat relay, and player join/leave notifications
 - **test-client** — C# game client used by E2E tests
 - **dll-patcher** — Patches game DLLs for server compatibility
 - **openapi-generator** — Extracts OpenAPI spec from the compiled mod
@@ -135,4 +135,6 @@ There is no graceful save-on-shutdown. Stardew Valley saves at the end of each i
 
 ## Discord Bot
 
-The discord-bot service is optional. It requires a valid `DISCORD_BOT_TOKEN` (bot token from Discord Developer Portal, **not** the application public key). If the token is missing or invalid, the bot will crash-loop. If you don't need it, either remove it from `docker-compose.yml` or don't start it (`docker compose up -d server steam-auth`).
+The discord-bot service is optional. It requires a valid `DISCORD_BOT_TOKEN` (bot token from Discord Developer Portal, **not** the application public key). If the token is missing, the bot exits cleanly and won't restart. If the token is invalid, the bot will crash-loop. If you don't need it, either remove it from `docker-compose.yml` or don't start it (`docker compose up -d server steam-auth`).
+
+`DISCORD_CHAT_CHANNEL_ID` is used for both chat relay and player join/leave notifications.
