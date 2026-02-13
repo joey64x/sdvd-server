@@ -41,4 +41,16 @@ namespace JunimoServer.Services.Api
         [JsonProperty("timestamp")]
         public string Timestamp { get; set; } = "";
     }
+
+    /// <summary>
+    /// Payload for player connection events (Game → Discord).
+    /// </summary>
+    public class PlayerEventPayload
+    {
+        [JsonProperty("playerName")]
+        public string PlayerName { get; set; } = "";
+
+        [JsonProperty("timestamp")]
+        public string Timestamp { get; set; } = "";
+    }
 }

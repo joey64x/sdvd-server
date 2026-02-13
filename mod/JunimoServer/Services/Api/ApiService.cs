@@ -418,6 +418,8 @@ namespace JunimoServer.Services.Api
 
             Helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             Helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
+            Helper.Events.Multiplayer.PeerConnected += OnPeerConnected;
+            Helper.Events.Multiplayer.PeerDisconnected += OnPeerDisconnected;
         }
 
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
@@ -718,6 +720,53 @@ namespace JunimoServer.Services.Api
             };
 
             BroadcastToAllClients(wsMessage);
+        }
+
+        /// <summary>
+        /// Broadcasts a player connection event to all connected WebSocket clients.
+        /// </summary>
+        public void BroadcastPlayerEvent(string playerName, string eventType)
+        {
+            var wsMessage = new WebSocketMessage
+            {
+                Type = eventType,
+                Payload = JObject.FromObject(new PlayerEventPayload
+                {
+                    PlayerName = playerName,
+                    Timestamp = DateTime.UtcNow.ToString("o")
+                })
+            };
+
+            BroadcastToAllClients(wsMessage);
+        }
+
+        private void OnPeerConnected(object? sender, PeerConnectedEventArgs e)
+        {
+            if (!_isRunning) return;
+
+            var peerId = e.Peer.PlayerID;
+            if (peerId == Game1.player?.UniqueMultiplayerID) return;
+
+            var farmer = Game1.getOnlineFarmers().FirstOrDefault(f => f.UniqueMultiplayerID == peerId);
+            var name = farmer?.Name ?? "Unknown";
+
+            Monitor.Log($"[API] Player connected: {name} ({peerId})", LogLevel.Debug);
+            BroadcastPlayerEvent(name, "player_joined");
+        }
+
+        private void OnPeerDisconnected(object? sender, PeerDisconnectedEventArgs e)
+        {
+            if (!_isRunning) return;
+
+            var peerId = e.Peer.PlayerID;
+            if (peerId == Game1.player?.UniqueMultiplayerID) return;
+
+            // Use getAllFarmhands since the farmer may already be removed from getOnlineFarmers
+            var farmer = Game1.getAllFarmhands().FirstOrDefault(f => f.UniqueMultiplayerID == peerId);
+            var name = farmer?.Name ?? "Unknown";
+
+            Monitor.Log($"[API] Player disconnected: {name} ({peerId})", LogLevel.Debug);
+            BroadcastPlayerEvent(name, "player_left");
         }
 
         private async Task HandleWebSocketAsync(HttpListenerContext context)

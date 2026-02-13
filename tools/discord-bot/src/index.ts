@@ -236,6 +236,15 @@ function connectWebSocket(): void {
               await (channel as TextChannel).send(`**${playerName}**: ${message}`);
             }
           }
+        } else if ((msg.type === "player_joined" || msg.type === "player_left") && msg.payload) {
+          const channel = client.channels.cache.get(DISCORD_CHAT_CHANNEL_ID);
+          if (channel?.isTextBased()) {
+            const { playerName } = msg.payload;
+            if (playerName) {
+              const action = msg.type === "player_joined" ? "joined" : "left";
+              await (channel as TextChannel).send(`**${playerName}** ${action} the server`);
+            }
+          }
         }
       } catch (error) {
         if (error instanceof Error) {
