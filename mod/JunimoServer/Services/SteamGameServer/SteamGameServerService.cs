@@ -163,6 +163,12 @@ namespace JunimoServer.Services.SteamGameServer
         /// </summary>
         public static event Action<ulong> OnServerSteamIdReceived;
 
+        /// <summary>
+        /// Event fired when the GameServer disconnects from Steam servers.
+        /// Subscribe to this to invalidate cached state (e.g., lobby IDs).
+        /// </summary>
+        public static event Action OnServerDisconnected;
+
         private static void OnSteamServersConnected(SteamServersConnected_t callback)
         {
             _serverSteamId = Steamworks.SteamGameServer.GetSteamID();
@@ -197,6 +203,9 @@ namespace JunimoServer.Services.SteamGameServer
         {
             _monitor.Log($"Disconnected from Steam servers: {callback.m_eResult}", LogLevel.Warn);
             _monitor.Log("SDR connections may be affected until reconnected", LogLevel.Warn);
+
+            // Notify subscribers so they can invalidate cached state (e.g., lobby IDs)
+            OnServerDisconnected?.Invoke();
         }
 
         /// <summary>

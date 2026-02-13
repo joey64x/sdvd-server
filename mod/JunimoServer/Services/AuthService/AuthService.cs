@@ -130,12 +130,37 @@ namespace JunimoServer.Services.Auth
         #endregion
 
         /// <summary>
+        /// Called when the GameServer disconnects from Steam.
+        /// Immediately invalidates lobby state so we don't spam stale lobby updates.
+        /// </summary>
+        private static void OnServerDisconnected()
+        {
+            if (_steamLobbyId != 0)
+            {
+                _monitor.Log("Steam disconnected — invalidating lobby state", LogLevel.Info);
+                _steamLobbyId = 0;
+                _lobbyCreationAttempted = false;
+                _lastSteamLobbyPrivacy = null;
+            }
+        }
+
+        /// <summary>
         /// Called when SteamGameServerService receives a valid Steam ID from Valve.
         /// This completes any deferred Galaxy initialization and creates the Steam lobby.
         /// </summary>
         private static void OnServerSteamIdReceived(ulong steamId)
         {
             _monitor.Log($"Received GameServer Steam ID: {steamId}", LogLevel.Info);
+
+            // Reset lobby state on every (re)connection — the old lobby is destroyed
+            // when steam-auth disconnects, so we must create a fresh one
+            if (_lobbyCreationAttempted)
+            {
+                _monitor.Log("Resetting stale lobby state for new Steam connection", LogLevel.Info);
+            }
+            _steamLobbyId = 0;
+            _lobbyCreationAttempted = false;
+            _lastSteamLobbyPrivacy = null;
 
             // Complete deferred Galaxy initialization if we were waiting for GameServer
             if (_pendingSteamHelper != null && !_galaxyInitComplete)
@@ -169,6 +194,9 @@ namespace JunimoServer.Services.Auth
 
             // Subscribe to Steam ID assignment event to create lobby at the right time
             SteamGameServerService.OnServerSteamIdReceived += OnServerSteamIdReceived;
+
+            // Subscribe to disconnect event to invalidate stale lobby state immediately
+            SteamGameServerService.OnServerDisconnected += OnServerDisconnected;
 
             // Handle race condition: If Steam ID was already received before we subscribed,
             // manually trigger the handler. This ensures Galaxy init happens even if the
