@@ -417,6 +417,15 @@ namespace JunimoServer.Services.CabinManager
                 return false;
             }
 
+            // Check if the farmhand is currently active (connected player).
+            // This handles LAN/IP connections where userID isn't set and the player
+            // hasn't finished character customization yet — without this, the cabin
+            // appears "available" during character creation, preventing buffer cabin creation.
+            if (owner.isActive())
+            {
+                return false;
+            }
+
             // Owner exists but is not customized and has no userID = available slot
             return true;
         }
