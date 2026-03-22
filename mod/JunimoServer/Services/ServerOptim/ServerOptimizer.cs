@@ -56,6 +56,12 @@ namespace JunimoServer.Services.ServerOptim
                 prefix: new HarmonyMethod(typeof(ServerOptimizerOverrides), nameof(ServerOptimizerOverrides.Disable_Prefix))
             );
 
+            // Phone.StopRinging throws NullReferenceException on headless server (no audio device)
+            harmony.Patch(
+                original: AccessTools.Method(typeof(StardewValley.Objects.Phone), nameof(StardewValley.Objects.Phone.StopRinging)),
+                prefix: new HarmonyMethod(typeof(ServerOptimizerOverrides), nameof(ServerOptimizerOverrides.Disable_Prefix))
+            );
+
             // harmony.Patch(
             //     original: AccessTools.Method("StardewValley.Game1:CheckGamepadMode"),
             //     prefix: new HarmonyMethod(typeof(ServerOptimizerOverrides), nameof(ServerOptimizerOverrides.Disable_Prefix))
