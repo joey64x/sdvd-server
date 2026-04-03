@@ -135,10 +135,10 @@ namespace JunimoServer.Services.Auth
         /// </summary>
         private static void OnServerDisconnected()
         {
-            if (_steamLobbyId != 0)
+            if (Interlocked.Read(ref _steamLobbyId) != 0)
             {
                 _monitor.Log("Steam disconnected — invalidating lobby state", LogLevel.Info);
-                _steamLobbyId = 0;
+                Interlocked.Exchange(ref _steamLobbyId, 0);
                 _lobbyCreationAttempted = false;
                 _lastSteamLobbyPrivacy = null;
             }
@@ -488,7 +488,10 @@ namespace JunimoServer.Services.Auth
             if (_lastSteamLobbyPrivacy == privacy)
                 return;
 
-            if (_steamLobbyId == 0)
+            // Snapshot the lobby ID to avoid a race where OnServerDisconnected
+            // zeroes it between our check and the HTTP call
+            var lobbyId = Interlocked.Read(ref _steamLobbyId);
+            if (lobbyId == 0)
                 return;
 
             try
@@ -499,7 +502,7 @@ namespace JunimoServer.Services.Auth
 
                 // Force Public for dedicated server - invite codes need joinable lobbies
                 apiClient.SetLobbyPrivacy(
-                    lobbyId: _steamLobbyId,
+                    lobbyId: lobbyId,
                     privacy: "public");
 
                 _lastSteamLobbyPrivacy = privacy;
@@ -518,7 +521,8 @@ namespace JunimoServer.Services.Auth
         /// </summary>
         public static void SetSteamLobbyData(string key, string value)
         {
-            if (_steamLobbyId == 0)
+            var lobbyId = Interlocked.Read(ref _steamLobbyId);
+            if (lobbyId == 0)
             {
                 _monitor.Log($"Cannot set Steam lobby data '{key}': lobby not ready", LogLevel.Debug);
                 return;
@@ -531,7 +535,7 @@ namespace JunimoServer.Services.Auth
                     return;
 
                 apiClient.SetLobbyData(
-                    lobbyId: _steamLobbyId,
+                    lobbyId: lobbyId,
                     metadata: new Dictionary<string, string> { [key] = value });
 
                 _monitor.Log($"Steam lobby data set: {key}={value}", LogLevel.Debug);
