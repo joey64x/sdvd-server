@@ -1,5 +1,5 @@
 # Global build arguments
-ARG SMAPI_VERSION=4.5.1
+ARG SMAPI_VERSION=4.5.2
 
 # ============================================================================
 # Stage 1: Build steam-service downloader
@@ -110,7 +110,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================================
 # Stage 4: Final runtime image (no game files, downloads on first run)
 # ============================================================================
-FROM --platform=$BUILDPLATFORM jlesage/baseimage-gui:debian-11-v4.11.2 AS server
+FROM --platform=$BUILDPLATFORM jlesage/baseimage-gui:debian-11-v4.11.3 AS server
 
 ARG SMAPI_VERSION
 
