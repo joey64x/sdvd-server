@@ -82,12 +82,38 @@ namespace JunimoServer
 
         #endregion
 
+        #region Solo Auto-Pause
+
+        /// <summary>
+        /// Override solo auto-pause on/off from environment.
+        /// Returns null if unset (uses AlwaysOnConfig.SoloAutoPauseEnabled).
+        /// </summary>
+        public static readonly bool? SoloAutoPauseEnabled = ParseNullableBool("SOLO_AUTO_PAUSE_ENABLED");
+
+        /// <summary>
+        /// Override idle-tick threshold for solo auto-pause from environment.
+        /// Returns null if unset (uses AlwaysOnConfig.SoloAutoPauseIdleTicks).
+        /// </summary>
+        public static readonly int? SoloAutoPauseIdleTicks = ParseNullableInt("SOLO_AUTO_PAUSE_IDLE_TICKS");
+
+        #endregion
+
         private static bool? ParseNullableBool(string envVar)
         {
             var value = Environment.GetEnvironmentVariable(envVar);
             if (string.IsNullOrEmpty(value))
                 return null;
             if (bool.TryParse(value, out var result))
+                return result;
+            return null;
+        }
+
+        private static int? ParseNullableInt(string envVar)
+        {
+            var value = Environment.GetEnvironmentVariable(envVar);
+            if (string.IsNullOrEmpty(value))
+                return null;
+            if (int.TryParse(value, out var result))
                 return result;
             return null;
         }

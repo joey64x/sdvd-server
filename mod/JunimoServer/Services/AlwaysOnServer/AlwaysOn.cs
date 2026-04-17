@@ -1,6 +1,8 @@
+using HarmonyLib;
 using JunimoServer.Services.ChatCommands;
 using JunimoServer.Services.ServerOptim;
 using JunimoServer.Util;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -40,9 +42,25 @@ namespace JunimoServer.Services.AlwaysOn
 
         private readonly AlwaysOnConfig Config;
 
-        public AlwaysOnServer(ChatCommandsService chatCommandService, AlwaysOnConfig config, IModHelper helper, IMonitor monitor) : base(helper, monitor)
+        private Vector2 _lastSoloPosition;
+        private long _lastSoloActivityTick;
+        private int _lastNumPlayers = -1;
+        private readonly bool _soloAutoPauseEnabled;
+        private readonly int _soloAutoPauseIdleTicks;
+
+        public AlwaysOnServer(ChatCommandsService chatCommandService, AlwaysOnConfig config, Harmony harmony, IModHelper helper, IMonitor monitor) : base(helper, monitor)
         {
             Config = config;
+
+            _soloAutoPauseEnabled = Env.SoloAutoPauseEnabled ?? Config.SoloAutoPauseEnabled;
+            _soloAutoPauseIdleTicks = Env.SoloAutoPauseIdleTicks ?? Config.SoloAutoPauseIdleTicks;
+
+            // Freeze the time-of-day clock via shouldTimePass instead of netWorldState.IsPaused,
+            // which also freezes client controls and traps players in a paused state.
+            harmony.Patch(
+                original: AccessTools.Method(typeof(Game1), nameof(Game1.shouldTimePass)),
+                prefix: new HarmonyMethod(typeof(AlwaysOnOverrides), nameof(AlwaysOnOverrides.ShouldTimePass_Prefix))
+            );
 
             // Register chat commands
             helper.ConsoleCommands.Add("host-auto", "Toggles host auto mode on/off", ToggleAutoModeCommand);
@@ -482,24 +500,63 @@ namespace JunimoServer.Services.AlwaysOn
 
             if (numPlayers >= 2)
             {
-                // Multiple players online: clear single-player pause
+                // Multiple players online: clear all pause flags
                 clientPaused = false;
+                AlwaysOnOverrides.SoloTimeFrozen = false;
                 Game1.netWorldState.Value.IsPaused = false;
             }
             else if (numPlayers == 1)
             {
-                // Respect player's pause request, but force unpause after 2500 (1:00 AM)
-                // to allow the end-of-day pass-out sequence at 2600 to proceed.
-                Game1.netWorldState.Value.IsPaused = clientPaused && Game1.timeOfDay is >= 610 and <= 2500;
+                // Solo mode: freeze the clock (via shouldTimePass patch) while the
+                // player is inactive. Never set netWorldState.IsPaused here — that
+                // also freezes client controls, trapping the player in a paused state.
+                var solo = Game1.otherFarmers.Values.First();
+
+                // On transition into solo, reset tracking so the player gets a full
+                // idle window before pause. Needed because SMAPI PeerConnected only
+                // fires for modded clients, not vanilla.
+                if (_lastNumPlayers != 1)
+                {
+                    _lastSoloPosition = solo.Position;
+                    _lastSoloActivityTick = (long)Game1.ticks;
+                }
+
+                if (IsSoloFarmerActive(solo))
+                {
+                    _lastSoloActivityTick = (long)Game1.ticks;
+                }
+
+                var withinPauseWindow = Game1.timeOfDay is >= 610 and <= 2500;
+                var idleTicks = (long)Game1.ticks - _lastSoloActivityTick;
+                var autoPause = _soloAutoPauseEnabled
+                    && !isFestivalDay
+                    && idleTicks >= _soloAutoPauseIdleTicks;
+
+                AlwaysOnOverrides.SoloTimeFrozen = withinPauseWindow && (clientPaused || autoPause);
+                Game1.netWorldState.Value.IsPaused = false;
             }
             else if (!isFestivalDay)
             {
-                // No players: clear pause flag and auto-pause during normal hours
+                // No players: clear manual flag. Use IsPaused (no one to block).
                 clientPaused = false;
+                AlwaysOnOverrides.SoloTimeFrozen = false;
                 // Pause during normal hours (610-2500), but unpause after 2500 to allow
                 // the forced pass-out sequence at 2600 (2:00 AM) to proceed.
                 Game1.netWorldState.Value.IsPaused = Game1.timeOfDay is >= 610 and <= 2500;
             }
+
+            _lastNumPlayers = numPlayers;
+        }
+
+        private bool IsSoloFarmerActive(Farmer f)
+        {
+            if (f.Position != _lastSoloPosition)
+            {
+                _lastSoloPosition = f.Position;
+                return true;
+            }
+            return f.UsingTool
+                || f.isEating;
         }
 
         /// <summary>

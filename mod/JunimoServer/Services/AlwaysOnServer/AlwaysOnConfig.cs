@@ -31,5 +31,13 @@ namespace JunimoServer.Services.AlwaysOn
         public int DanceOfJelliesTimeOut { get; set; } = 120000;
         public int FestivalOfIceTimeOut { get; set; } = 120000;
 
+        // Pause time when the sole connected player is inactive. Menus prevent
+        // movement, so idle detection approximates single-player menu-pause
+        // without needing a client-side mod. Overridden by SOLO_AUTO_PAUSE_ENABLED.
+        public bool SoloAutoPauseEnabled { get; set; } = true;
+
+        // Ticks of inactivity before solo auto-pause engages. 30 ≈ 0.5s at 60 TPS.
+        // Overridden by SOLO_AUTO_PAUSE_IDLE_TICKS.
+        public int SoloAutoPauseIdleTicks { get; set; } = 30;
     }
 }
