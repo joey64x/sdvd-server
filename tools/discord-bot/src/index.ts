@@ -7,6 +7,7 @@ const API_KEY = process.env.API_KEY || "";
 const WS_URL = process.env.WS_URL || API_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws";
 const DISCORD_CHAT_CHANNEL_ID = process.env.DISCORD_CHAT_CHANNEL_ID;
 const DISCORD_BOT_NICKNAME = process.env.DISCORD_BOT_NICKNAME;
+const DISCORD_NOTIFY_JOIN_LEAVE = (process.env.DISCORD_NOTIFY_JOIN_LEAVE || "true").toLowerCase() !== "false";
 
 // Discord rate limit for presence updates is ~5 per 20 seconds.
 // 30 seconds is a safe default that won't trigger rate limits.
@@ -236,7 +237,7 @@ function connectWebSocket(): void {
               await (channel as TextChannel).send(`**${playerName}**: ${message}`);
             }
           }
-        } else if ((msg.type === "player_joined" || msg.type === "player_left") && msg.payload) {
+        } else if ((msg.type === "player_joined" || msg.type === "player_left") && msg.payload && DISCORD_NOTIFY_JOIN_LEAVE) {
           const channel = client.channels.cache.get(DISCORD_CHAT_CHANNEL_ID);
           if (channel?.isTextBased()) {
             const { playerName } = msg.payload;

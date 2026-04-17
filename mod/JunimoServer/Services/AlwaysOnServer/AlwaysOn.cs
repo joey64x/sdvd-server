@@ -48,6 +48,8 @@ namespace JunimoServer.Services.AlwaysOn
             helper.ConsoleCommands.Add("host-auto", "Toggles host auto mode on/off", ToggleAutoModeCommand);
             helper.ConsoleCommands.Add("host-visibility", "Toggles host visibility on/off", ToggleVisibilityCommand);
 
+            chatCommandService.RegisterCommand("pause", "Toggle time pause (works when you're the only player online).", PauseCommand);
+
             // Extracted festival logic
             alwaysOnServerFestivals = new AlwaysOnServerFestivals(helper, monitor, chatCommandService, config);
         }
@@ -279,6 +281,27 @@ namespace JunimoServer.Services.AlwaysOn
             ToggleVisibility();
         }
 
+        private void PauseCommand(string[] args, ReceivedMessage msg)
+        {
+            if (!IsAutomating)
+            {
+                Helper.SendPrivateMessage(msg.SourceFarmer, "Time pause is only available when host automation is enabled.");
+                return;
+            }
+
+            var numPlayers = Game1.otherFarmers.Count;
+            if (numPlayers > 1)
+            {
+                Helper.SendPrivateMessage(msg.SourceFarmer, "Time pause is only available when you're the only player online.");
+                return;
+            }
+
+            clientPaused = !clientPaused;
+            var state = clientPaused ? "paused" : "resumed";
+            Helper.SendPublicMessage($"Time {state}.");
+            Monitor.Log($"[Automation] Time {state} by player request", LogLevel.Info);
+        }
+
         private void ToggleAutoMode()
         {
             if (Game1.gameMode != 3)
@@ -450,18 +473,29 @@ namespace JunimoServer.Services.AlwaysOn
         /// <summary>
         /// Pause the game when there are no clients connected.
         /// After 2500 (1:00 AM), always unpause to allow the end-of-day pass-out sequence.
+        /// When a player has used !pause, respect that while they're the only player online.
         /// </summary>
         private void HandleAutoPause()
         {
             var numPlayers = Game1.otherFarmers.Count;
             var isFestivalDay = SDateHelper.IsFestivalToday();
 
-            if (numPlayers >= 1)
+            if (numPlayers >= 2)
             {
-                Game1.netWorldState.Value.IsPaused = clientPaused;
+                // Multiple players online: clear single-player pause
+                clientPaused = false;
+                Game1.netWorldState.Value.IsPaused = false;
             }
-            else if (numPlayers == 0 && !isFestivalDay)
+            else if (numPlayers == 1)
             {
+                // Respect player's pause request, but force unpause after 2500 (1:00 AM)
+                // to allow the end-of-day pass-out sequence at 2600 to proceed.
+                Game1.netWorldState.Value.IsPaused = clientPaused && Game1.timeOfDay is >= 610 and <= 2500;
+            }
+            else if (!isFestivalDay)
+            {
+                // No players: clear pause flag and auto-pause during normal hours
+                clientPaused = false;
                 // Pause during normal hours (610-2500), but unpause after 2500 to allow
                 // the forced pass-out sequence at 2600 (2:00 AM) to proceed.
                 Game1.netWorldState.Value.IsPaused = Game1.timeOfDay is >= 610 and <= 2500;
